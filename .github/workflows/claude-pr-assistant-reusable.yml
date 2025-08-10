@@ -1,0 +1,77 @@
+name: Claude PR Assistant - Reusable
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: 'Claude model to use'
+        required: false
+        type: string
+        default: 'claude-sonnet-4'
+      trigger_phrase:
+        description: 'Phrase to trigger Claude'
+        required: false
+        type: string
+        default: '@claude'
+      allowed_tools:
+        description: 'Tools Claude can use'
+        required: false
+        type: string
+        default: ''
+      custom_instructions:
+        description: 'Custom instructions for Claude'
+        required: false
+        type: string
+        default: ''
+      claude_env:
+        description: 'Environment variables for Claude'
+        required: false
+        type: string
+        default: ''
+      fetch_depth:
+        description: 'Git fetch depth'
+        required: false
+        type: number
+        default: 0
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: 'Claude Code OAuth token'
+        required: true
+
+jobs:
+  claude:
+    if: |
+      ((github.event_name == 'issue_comment' && contains(github.event.comment.body, '${{ inputs.trigger_phrase }}')) ||
+       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '${{ inputs.trigger_phrase }}')) ||
+       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '${{ inputs.trigger_phrase }}')) ||
+       (github.event_name == 'issues' && (contains(github.event.issue.body, '${{ inputs.trigger_phrase }}') || contains(github.event.issue.title, '${{ inputs.trigger_phrase }}')))) &&
+      (github.event.comment.author_association == 'OWNER' || 
+       github.event.comment.author_association == 'MEMBER' || 
+       github.event.comment.author_association == 'COLLABORATOR' ||
+       github.event.review.author_association == 'OWNER' ||
+       github.event.review.author_association == 'MEMBER' ||
+       github.event.review.author_association == 'COLLABORATOR')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+      actions: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.fetch_depth }}
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ inputs.model }}
+          trigger_phrase: ${{ inputs.trigger_phrase }}
+          allowed_tools: ${{ inputs.allowed_tools }}
+          custom_instructions: ${{ inputs.custom_instructions }}
+          claude_env: ${{ inputs.claude_env }}

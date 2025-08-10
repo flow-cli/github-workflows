@@ -1,0 +1,83 @@
+name: Claude Code Review - Reusable
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: 'Claude model to use'
+        required: false
+        type: string
+        default: 'claude-opus-4-1-20250805'
+      review_prompt:
+        description: 'Custom review prompt'
+        required: false
+        type: string
+        default: |
+          Please review this pull request and provide feedback on:
+          - Code quality and best practices
+          - Potential bugs or issues
+          - Performance considerations
+          - Security concerns
+          - Test coverage
+          
+          Be constructive and helpful in your feedback.
+      use_sticky_comment:
+        description: 'Use sticky comments'
+        required: false
+        type: boolean
+        default: true
+      allowed_tools:
+        description: 'Additional tools for Claude to use'
+        required: false
+        type: string
+        default: ''
+      skip_conditions:
+        description: 'Conditions to skip review'
+        required: false
+        type: string
+        default: '[skip-review],[WIP]'
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN:
+        description: 'Claude Code OAuth token'
+        required: true
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+    
+    steps:
+      - name: Check skip conditions
+        id: check_skip
+        run: |
+          SKIP_PATTERNS="${{ inputs.skip_conditions }}"
+          SHOULD_SKIP="false"
+          IFS=',' read -ra PATTERNS <<< "$SKIP_PATTERNS"
+          for pattern in "${PATTERNS[@]}"; do
+            if [[ "${{ github.event.pull_request.title }}" == *"$pattern"* ]]; then
+              SHOULD_SKIP="true"
+              break
+            fi
+          done
+          echo "should_skip=$SHOULD_SKIP" >> $GITHUB_OUTPUT
+      
+      - name: Checkout repository
+        if: steps.check_skip.outputs.should_skip != 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        if: steps.check_skip.outputs.should_skip != 'true'
+        id: claude-review
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          model: ${{ inputs.model }}
+          direct_prompt: ${{ inputs.review_prompt }}
+          use_sticky_comment: ${{ inputs.use_sticky_comment }}
+          allowed_tools: ${{ inputs.allowed_tools }}
