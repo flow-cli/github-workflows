@@ -75,9 +75,6 @@ on:
       CLAUDE_CODE_OAUTH_TOKEN:
         description: 'Claude Code OAuth token'
         required: true
-      GITHUB_TOKEN:
-        description: 'GitHub token for MCP server'
-        required: true
 
 jobs:
   triage-issue:
